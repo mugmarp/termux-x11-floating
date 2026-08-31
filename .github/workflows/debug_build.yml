@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - feat/floating-keyboard-button
     paths-ignore:
       - '**.md'
       - 'img/**'

@@ -4,6 +4,8 @@
 -keep class com.termux.x11.LorieView {
     native <methods>;
     void resetIme();
+    public void showKeyboard();
+    public void hideKeyboard();
 }
 
 -keep class com.termux.x11.CmdEntryPoint {
@@ -27,4 +29,25 @@
 # Keep Preference subclasses' onSetInitialValue for reflective calls
 -keepclassmembers class * extends android.preference.Preference {
     void onSetInitialValue(boolean, java.lang.Object);
+}
+
+# Preserve FloatingButtonService (called by system)
+-keep class com.termux.x11.floating.FloatingButtonService { *; }
+
+# Preserve FloatingButtonListener interface
+-keep interface com.termux.x11.floating.FloatingButtonListener { *; }
+
+# Preserve FloatingButtonManager singleton
+-keep class com.termux.x11.floating.FloatingButtonManager {
+    public static com.termux.x11.floating.FloatingButtonManager getInstance(android.content.Context);
+    public void setLorieView(com.termux.x11.LorieView);
+    public void clearLorieView();
+    public void toggleKeyboard();
+    public void registerListener(com.termux.x11.floating.FloatingButtonListener);
+}
+
+# Preserve OverlayPermissionHelper static methods
+-keep class com.termux.x11.utils.OverlayPermissionHelper {
+    public static boolean hasOverlayPermission(android.app.Activity);
+    public static void requestOverlayPermission(android.app.Activity, int);
 }

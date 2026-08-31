@@ -63,6 +63,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -74,11 +75,14 @@ import androidx.core.view.ViewCompat;
 import androidx.viewpager.widget.ViewPager;
 
 import com.termux.x11.extrakeys.ExtraKeysInfo;
+import com.termux.x11.floating.FloatingButtonManager;
+import com.termux.x11.floating.FloatingButtonService;
 import com.termux.x11.input.InputEventSender;
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.ImeHeightProvider;
 import com.termux.x11.utils.KeyInterceptor;
+import com.termux.x11.utils.OverlayPermissionHelper;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
@@ -120,6 +124,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean oldFullscreen = false, oldHideCutout = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
     private OrientationEventListener orientationListener;
+
+    // Floating keyboard button
+    private static final int REQUEST_OVERLAY_PERMISSION = 1001;
+    private static final int REQUEST_POST_NOTIFICATIONS = 1002;
+    private FloatingButtonManager buttonManager;
 
     public void onBroadcastReceive(Context context, Intent intent) {
         prefs.recheckStoringSecondaryDisplayPreferences();
@@ -202,6 +211,23 @@ public class MainActivity extends AppCompatActivity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
         applyWindowSettings();
+
+        // Initialize button manager
+        buttonManager = FloatingButtonManager.getInstance(this);
+
+        // Check and request POST_NOTIFICATIONS permission (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        REQUEST_POST_NOTIFICATIONS);
+            }
+        }
+
+        // Check overlay permission
+        if (!OverlayPermissionHelper.hasOverlayPermission(this)) {
+            OverlayPermissionHelper.requestOverlayPermission(this, REQUEST_OVERLAY_PERMISSION);
+        }
 
         frm = findViewById(R.id.frame);
         findViewById(R.id.preferences_button).setOnClickListener((l) -> startActivity(new Intent(this, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}));
@@ -288,6 +314,61 @@ public class MainActivity extends AppCompatActivity {
 
         onReceiveConnection(getIntent());
         findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d("MainActivity", "onStart: Starting floating button service");
+
+        if (OverlayPermissionHelper.hasOverlayPermission(this)) {
+            startFloatingButtonService();
+        } else {
+            Toast.makeText(this, "Grant overlay permission in settings",
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d("MainActivity", "onStop: Stopping floating button service");
+
+        stopService(new Intent(this, FloatingButtonService.class));
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_OVERLAY_PERMISSION) {
+            if (OverlayPermissionHelper.hasOverlayPermission(this)) {
+                startFloatingButtonService();
+            } else {
+                Toast.makeText(this, "Overlay permission required for floating button",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+            String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_POST_NOTIFICATIONS) {
+            if (grantResults.length > 0 &&
+                    grantResults[0] == PERMISSION_GRANTED) {
+                Log.d("MainActivity", "POST_NOTIFICATIONS permission granted");
+            }
+        }
+    }
+
+    private void startFloatingButtonService() {
+        Intent serviceIntent = new Intent(this, FloatingButtonService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
     }
 
     @Override
@@ -619,6 +700,11 @@ public class MainActivity extends AppCompatActivity {
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged();
                 getLorieView().reloadPreferences(prefs);
+
+                // Notify FloatingButtonManager that LorieView is ready
+                if (buttonManager != null) {
+                    buttonManager.setLorieView(getLorieView());
+                }
             } else
                 scheduleConnect();
         } catch (Exception e) {
@@ -1130,6 +1216,13 @@ public class MainActivity extends AppCompatActivity {
             findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && connected ? View.VISIBLE : View.GONE);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
             getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
+
+            // Register LorieView with floating button manager when connected
+            if (connected && buttonManager != null) {
+                buttonManager.setLorieView(getLorieView());
+            } else if (!connected && buttonManager != null) {
+                buttonManager.clearLorieView();
+            }
 
             // We should recover connection in the case if file descriptor for some reason was broken...
             if (!connected)

@@ -344,6 +344,29 @@ public class LorieView extends SurfaceView implements InputStub {
             mIMM.hideSoftInputFromWindow(getWindowToken(), 0);
     }
 
+    /**
+     * Public method to request the software keyboard.
+     * Called by FloatingButtonManager when the floating button is tapped.
+     *
+     * CRITICAL: Requires window focus; called after requestFocus()
+     */
+    public void showKeyboard() {
+        this.requestFocus();
+        if (mIMM != null) {
+            // Use 0 for explicit user action
+            mIMM.showSoftInput(this, 0);
+        }
+    }
+
+    /**
+     * Public method to hide the software keyboard.
+     */
+    public void hideKeyboard() {
+        if (mIMM != null) {
+            mIMM.hideSoftInputFromWindow(this.getWindowToken(), 0);
+        }
+    }
+
     public void toggleKeyboardVisible() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             WindowInsets insets = getRootWindowInsets();

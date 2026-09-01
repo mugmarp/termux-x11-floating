@@ -178,6 +178,35 @@ You can access preferences menu three ways:
 ## Toggling keyboard
 Just press "Back" button.
 
+### Floating Keyboard Button (Android 8+)
+A persistent floating button that toggles the soft keyboard without returning to the main activity.
+
+**Features:**
+- Draggable overlay button (like Facebook Messenger chat head)
+- Tap to toggle soft keyboard visibility
+- Drag to reposition; position persists across app restarts
+- Edge-snapping to screen boundaries
+- Material Design circular button with keyboard icon
+
+**Requirements:**
+- Android 8.0 (API 26) or later
+- `SYSTEM_ALERT_WINDOW` permission (granted via Settings)
+- `POST_NOTIFICATIONS` permission (Android 13+, granted at runtime)
+
+**How to enable:**
+1. Launch Termux:X11
+2. Grant overlay permission when prompted
+3. The floating button appears when the X11 server is connected
+4. Tap to show/hide the soft keyboard
+5. Drag to move the button anywhere on screen
+
+**Implementation details:**
+- Foreground service with `TYPE_APPLICATION_OVERLAY` window
+- `WeakReference<LorieView>` to prevent memory leaks
+- `WindowInsetsCompat` for accurate IME visibility tracking
+- `getScaledTouchSlop()` for proper tap vs drag detection
+- Position saved to SharedPreferences on drag end
+
 ## Touch gestures
 ### Touchpad emulation mode.
 In touchpad emulation mode you can use the following gestures:

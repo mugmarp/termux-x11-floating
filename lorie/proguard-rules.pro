@@ -51,3 +51,8 @@
     public static boolean hasOverlayPermission(android.app.Activity);
     public static void requestOverlayPermission(android.app.Activity, int);
 }
+
+# Preserve LoriePreferences PrefsProto and inner classes (accessed via reflection)
+-keep class com.termux.x11.LoriePreferences$PrefsProto { *; }
+-keep class com.termux.x11.LoriePreferences$PrefsProto$* { *; }
+-keep class com.termux.x11.LoriePreferences { *; }
